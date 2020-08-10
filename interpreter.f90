@@ -33,9 +33,8 @@ program bfInterpreter
 
     ! Virtual machine
     integer (kind = 1), dimension(30000) :: memory
-    integer :: ptr = 1
     integer (kind = 1), dimension(:), allocatable :: byteCode
-    integer :: byteCodePointer = 1
+    integer :: ptr = 1, byteCodePointer = 1
     integer (kind = 1) :: inputChar, jumpLabel
     character, dimension(8) :: codeChars = (/'+', '-', '>', '<', '[', ']', '.', ','/)
 
@@ -92,7 +91,9 @@ program bfInterpreter
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Compile code using run-length encoding, with the exception of brackets
 
-    call cpu_time(start)
+    if (showTimer) then
+        call cpu_time(start)
+    end if
     
     ! Loop through every single character in the code
     do i = 1, j
@@ -105,19 +106,22 @@ program bfInterpreter
             cycle
         end if
 
-        ! If first character
+        ! If we are on the first character then we need to skip the
+        ! run-length encoding stuff because there was no character before
+        ! this one to check if a run had ended.
         if (isFirstCharacter) then
             ! No more first characters...obviously
             isFirstCharacter = .false.
 
-        ! Otherwise if not loop control and the last run has ended
+        ! Otherwise, if a new run has begun and the new character is not a
+        ! loop control character (which are exempt from the run-length encoding)
         else if (lastInstruction /= currentInstruction .and. lastInstruction /= ']' .and. lastInstruction /= '[') then
 
-            ! Add instruction
+            ! Add the last instruction
             byteCode(byteCodePointer) = int(findloc(codeChars, lastInstruction, dim = 1), 1)
             byteCodePointer = byteCodePointer + 1
 
-            ! Add repeat count
+            ! Add the amount of times that instruction was repeated
             byteCode(byteCodePointer) = repeatCount
             byteCodePointer = byteCodePointer + 1
 
@@ -224,6 +228,7 @@ program bfInterpreter
             ! [
             case (5)
 
+                ! If the current cell is 0 then we need to skip this loop
                 if (memory(ptr) == 0) then
 
                     jumpLabel = byteCode(i + 1)
@@ -236,6 +241,7 @@ program bfInterpreter
             ! ]
             case (6)
 
+                ! If the current cell is not 0 then we need to jump back to the beginning of the loop
                 if (memory(ptr) /= 0) then
 
                     jumpLabel = byteCode(i + 1)
@@ -248,6 +254,7 @@ program bfInterpreter
 
             ! .
             case (7)
+                ! Repeat the character however many times was specified and write without a newline
                 write (*, "(A)", advance="no") repeat(char(memory(ptr)), byteCode(i + 1))
 
             ! ,
